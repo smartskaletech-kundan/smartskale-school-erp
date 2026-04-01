@@ -13,6 +13,7 @@ import {
 import { mockStudents } from "@/data/mockStudents";
 import { formatCurrency } from "@/utils/formatCurrency";
 import { generateReceiptNo, generateTxnId } from "@/utils/formatDate";
+import { downloadReceipt, printReceipt } from "@/utils/printReceipt";
 import {
   ArrowLeft,
   CheckCircle,
@@ -20,6 +21,7 @@ import {
   Home,
   Loader2,
   Lock,
+  Printer,
   Search,
   Share2,
 } from "lucide-react";
@@ -67,15 +69,16 @@ export function QuickFeePay({ navigate }: Props) {
   const [payMethod, setPayMethod] = useState("upi");
   const [upiId, setUpiId] = useState("");
   const [processing, setProcessing] = useState(false);
-  const [txnId] = useState(generateTxnId());
-  const [receiptNo] = useState(generateReceiptNo());
+  const [txnId] = useState(generateTxnId);
+  const [receiptNo] = useState(generateReceiptNo);
 
-  const _pendingFees = FEE_ITEMS.filter((f) => f.status === "Pending");
   const lateFine = 50;
   const selectedAmount = FEE_ITEMS.filter((f) =>
     selectedFees.includes(f.id),
   ).reduce((s, f) => s + f.amount, 0);
   const totalPayable = selectedAmount + lateFine;
+
+  const selectedFeeItems = FEE_ITEMS.filter((f) => selectedFees.includes(f.id));
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -108,6 +111,48 @@ export function QuickFeePay({ navigate }: Props) {
     );
   };
 
+  const handleDownload = () => {
+    if (!student) return;
+    downloadReceipt({
+      receiptNo,
+      txnId,
+      studentName: student.name,
+      studentClass: `${student.class}-${student.section}`,
+      admissionNo: student.admissionNo,
+      fatherName: student.fatherName,
+      feeItems: selectedFeeItems,
+      lateFine,
+      totalAmount: totalPayable,
+      paymentMethod: payMethod.toUpperCase(),
+      dateTime: new Date().toLocaleString("en-IN"),
+    });
+    toast.success("Receipt downloaded!");
+  };
+
+  const handlePrint = () => {
+    if (!student) return;
+    printReceipt({
+      receiptNo,
+      txnId,
+      studentName: student.name,
+      studentClass: `${student.class}-${student.section}`,
+      admissionNo: student.admissionNo,
+      fatherName: student.fatherName,
+      feeItems: selectedFeeItems,
+      lateFine,
+      totalAmount: totalPayable,
+      paymentMethod: payMethod.toUpperCase(),
+      dateTime: new Date().toLocaleString("en-IN"),
+    });
+  };
+
+  const handleWhatsApp = () => {
+    const msg = encodeURIComponent(
+      `Fee Payment Receipt\nStudent: ${student?.name}\nClass: ${student?.class}-${student?.section}\nReceipt No: ${receiptNo}\nTxn ID: ${txnId}\nAmount: ₹${totalPayable.toLocaleString("en-IN")}\nDate: ${new Date().toLocaleDateString("en-IN")}\n- Saraswati Public School, Patna`,
+    );
+    window.open(`https://wa.me/?text=${msg}`, "_blank");
+  };
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -116,7 +161,13 @@ export function QuickFeePay({ navigate }: Props) {
           <div className="flex items-center gap-3">
             <button
               type="button"
-              onClick={() => navigate("/")}
+              onClick={() => {
+                if (step > 0) {
+                  setStep((s) => s - 1);
+                } else {
+                  navigate("/");
+                }
+              }}
               className="p-1.5 rounded-lg hover:bg-muted"
             >
               <ArrowLeft size={18} />
@@ -130,8 +181,19 @@ export function QuickFeePay({ navigate }: Props) {
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-1 text-xs text-muted-foreground">
-            <Lock size={12} /> Secured by Razorpay
+          <div className="flex items-center gap-3">
+            {step > 0 && step < 4 && (
+              <button
+                type="button"
+                onClick={() => navigate("/")}
+                className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
+              >
+                <Home size={13} /> Home
+              </button>
+            )}
+            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+              <Lock size={12} /> Secured by Razorpay
+            </div>
           </div>
         </div>
       </div>
@@ -277,7 +339,7 @@ export function QuickFeePay({ navigate }: Props) {
               <Button
                 data-ocid="fee_pay.confirm.button"
                 onClick={() => setStep(2)}
-                className="flex-1 bg-success hover:bg-success/90 text-success-foreground"
+                className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white"
               >
                 <CheckCircle size={16} className="mr-2" /> This is my ward
               </Button>
@@ -342,7 +404,7 @@ export function QuickFeePay({ navigate }: Props) {
                       <td className="px-4 py-3 text-center">
                         {fee.status === "Pending" ? (
                           <Checkbox
-                            data-ocid={"fee_pay.fee.checkbox"}
+                            data-ocid="fee_pay.fee.checkbox"
                             checked={selectedFees.includes(fee.id)}
                             onCheckedChange={() => toggleFee(fee.id)}
                           />
@@ -356,7 +418,7 @@ export function QuickFeePay({ navigate }: Props) {
                   ))}
                   <tr className="border-t border-border bg-muted/30">
                     <td
-                      className="px-4 py-2 text-sm text-muted-foreground"
+                      className="px-4 py-2 text-sm text-destructive"
                       colSpan={2}
                     >
                       Late Fine
@@ -481,7 +543,7 @@ export function QuickFeePay({ navigate }: Props) {
               <Button
                 data-ocid="fee_pay.pay.button"
                 onClick={handlePayment}
-                className="flex-1 bg-success hover:bg-success/90"
+                className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white"
                 disabled={processing}
               >
                 {processing ? (
@@ -491,8 +553,8 @@ export function QuickFeePay({ navigate }: Props) {
                   </>
                 ) : (
                   <>
-                    <Lock size={16} className="mr-2" />
-                    Pay {formatCurrency(totalPayable)} Securely
+                    <Lock size={16} className="mr-2" /> Pay{" "}
+                    {formatCurrency(totalPayable)} Securely
                   </>
                 )}
               </Button>
@@ -530,7 +592,7 @@ export function QuickFeePay({ navigate }: Props) {
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Amount Paid</span>
-                <span className="font-bold text-success text-lg">
+                <span className="font-bold text-emerald-600 text-lg">
                   {formatCurrency(totalPayable)}
                 </span>
               </div>
@@ -553,26 +615,33 @@ export function QuickFeePay({ navigate }: Props) {
                 data-ocid="fee_pay.download.button"
                 variant="outline"
                 className="flex-1"
-                onClick={() => toast.success("Receipt downloaded!")}
+                onClick={handleDownload}
               >
                 <Download size={16} className="mr-2" /> Download Receipt
+              </Button>
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={handlePrint}
+              >
+                <Printer size={16} className="mr-2" /> Print Receipt
               </Button>
               <Button
                 data-ocid="fee_pay.whatsapp.button"
                 variant="outline"
                 className="flex-1 text-green-600 border-green-200"
-                onClick={() => toast.success("Sent on WhatsApp!")}
+                onClick={handleWhatsApp}
               >
                 <Share2 size={16} className="mr-2" /> Send on WhatsApp
               </Button>
-              <Button
-                data-ocid="fee_pay.home.button"
-                className="flex-1"
-                onClick={() => navigate("/")}
-              >
-                <Home size={16} className="mr-2" /> Back to Home
-              </Button>
             </div>
+            <Button
+              data-ocid="fee_pay.home.button"
+              className="w-full mt-3"
+              onClick={() => navigate("/")}
+            >
+              <Home size={16} className="mr-2" /> Back to Home
+            </Button>
           </div>
         )}
       </div>

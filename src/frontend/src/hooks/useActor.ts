@@ -25,6 +25,7 @@ export function useActor() {
       };
 
       const actor = await createActorWithConfig(actorOptions);
+      // Access control initialization handled by backend automatically
       return actor;
     },
     // Only refetch when identity changes

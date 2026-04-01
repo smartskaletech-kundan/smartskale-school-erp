@@ -28,7 +28,7 @@ import {
   X,
 } from "lucide-react";
 import type React from "react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 interface NavItem {
   label: string;
@@ -425,7 +425,28 @@ export function Sidebar({
 }: SidebarProps) {
   const { user, logout } = useAuth();
   const navItems = getRoleNav(user?.role || "admin");
-  const [expandedItems, setExpandedItems] = useState<string[]>([]);
+
+  const [expandedItems, setExpandedItems] = useState<string[]>(() => {
+    // Auto-expand groups whose children include the current path
+    return navItems
+      .filter((item) =>
+        item.children?.some(
+          (c) => currentPath === c.path || currentPath.startsWith(`${c.path}/`),
+        ),
+      )
+      .map((item) => item.label);
+  });
+
+  useEffect(() => {
+    const auto = navItems
+      .filter((item) =>
+        item.children?.some(
+          (c) => currentPath === c.path || currentPath.startsWith(`${c.path}/`),
+        ),
+      )
+      .map((item) => item.label);
+    setExpandedItems((prev) => [...new Set([...prev, ...auto])]);
+  }, [currentPath, navItems]);
 
   const toggleExpand = (label: string) => {
     setExpandedItems((prev) =>
